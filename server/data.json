@@ -1,0 +1,26 @@
+{
+  "containers": [
+    {
+      "id": "safe",
+      "name": "保险柜",
+      "wait": { "min": 8, "max": 18 },
+      "drops": [
+        { "rarity": "普通", "minValue": 1000, "maxValue": 20000, "weight": 60, "items": ["后妃耳环", "旧相机", "银币"] },
+        { "rarity": "中等", "minValue": 20000, "maxValue": 300000, "weight": 25, "items": ["古董挂钟", "机械零件", "蓝宝石"] },
+        { "rarity": "稀有", "minValue": 300000, "maxValue": 3000000, "weight": 12, "items": ["非洲之心", "战地硬盘", "稀有手表"] },
+        { "rarity": "传说", "minValue": 3000000, "maxValue": 15000000, "weight": 3, "items": ["哥斯的留声机", "龙纹金盘"] }
+      ]
+    },
+    {
+      "id": "pc",
+      "name": "电脑",
+      "wait": { "min": 5, "max": 12 },
+      "drops": [
+        { "rarity": "普通", "minValue": 1000, "maxValue": 15000, "weight": 65, "items": ["旧U盘", "电路板", "硬盘线"] },
+        { "rarity": "中等", "minValue": 20000, "maxValue": 250000, "weight": 22, "items": ["显卡", "内存条", "主板"] },
+        { "rarity": "稀有", "minValue": 250000, "maxValue": 2500000, "weight": 10, "items": ["军用固态", "加密芯片", "战术通讯模块"] },
+        { "rarity": "传说", "minValue": 2500000, "maxValue": 12000000, "weight": 3, "items": ["原型AI核心", "黑匣子"] }
+      ]
+    }
+  ]
+}
