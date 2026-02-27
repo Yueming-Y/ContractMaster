@@ -69,7 +69,7 @@ const itemSpans = {
   "terracotta_figure": { spanX: 1, spanY: 2 },
   "sayyids_pocket_watch": { spanX: 1, spanY: 1 },
   "dancing_lady": { spanX: 1, spanY: 2 },
-  "golden_laurel": { spanX: 1, spanY: 3 },
+  "golden_laurel": { spanX: 3, spanY: 1 },
   "asala_canteen": { spanX: 1, spanY: 2 },
   "asala_lantern": { spanX: 1, spanY: 2 },
   "reths_phonograph": { spanX: 2, spanY: 3 },
