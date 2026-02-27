@@ -371,7 +371,12 @@ function calculateLayout(loots, cols, maxRows, tileW, tileH, margin, gridTop) {
     }
   }
 
-  placedLoots.sort((a, b) => a.originalIndex - b.originalIndex);
+  placedLoots.sort((a, b) => {
+    if (a.row !== b.row) {
+      return a.row - b.row;
+    }
+    return a.col - b.col;
+  });
 
   return placedLoots;
 }
@@ -478,7 +483,7 @@ function drawMenu() {
   ctx.font = "28px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  ctx.fillText("三角洲摸红", canvas.width / 2, 100);
+  ctx.fillText("今天出红了吗", canvas.width / 2, 100);
 
   const btnW = canvas.width * 0.6;
   const btnH = 60;
