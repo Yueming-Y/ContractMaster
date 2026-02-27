@@ -205,7 +205,7 @@ function getGridMetrics(cols) {
   if (margin < 2) margin = 2;
   tileW = Math.min(desiredTile, Math.floor((canvas.width - margin * (cols + 1)) / cols));
   const tileH = tileW;
-  const gridTop = 100;
+  const gridTop = 160;
   return { margin, tileW, tileH, gridTop };
 }
 
@@ -343,12 +343,12 @@ function drawMenu() {
   ctx.font = "28px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  ctx.fillText("三角洲摸红", canvas.width / 2, 40);
+  ctx.fillText("三角洲摸红", canvas.width / 2, 100);
 
   const btnW = canvas.width * 0.6;
   const btnH = 60;
   const x = (canvas.width - btnW) / 2;
-  const y1 = 140;
+  const y1 = 200;
   const y2 = y1 + 90;
   const safeRect = { x, y: y1, w: btnW, h: btnH };
   const pcRect = { x, y: y2, w: btnW, h: btnH };
@@ -373,10 +373,10 @@ function drawSpinner() {
     ctx.font = "24px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    ctx.fillText("正在搜索物资", canvas.width / 2, 40);
+    ctx.fillText("正在搜索物资", canvas.width / 2, 100);
     ctx.font = "16px sans-serif";
     ctx.fillStyle = "#cccccc";
-    ctx.fillText(`第 ${state.searchCount} 次`, canvas.width / 2, 70);
+    ctx.fillText(`第 ${state.searchCount} 次`, canvas.width / 2, 130);
   }
 
   const cols = 4;
@@ -442,10 +442,10 @@ function drawResult() {
   ctx.font = "24px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  ctx.fillText("掉落结果", canvas.width / 2, 40);
+  ctx.fillText("掉落结果", canvas.width / 2, 100);
   ctx.font = "16px sans-serif";
   ctx.fillStyle = "#cccccc";
-  ctx.fillText(`第 ${state.searchCount} 次搜索`, canvas.width / 2, 70);
+  ctx.fillText(`第 ${state.searchCount} 次搜索`, canvas.width / 2, 130);
 
   const loot = state.currentLoot;
   const cols = 4;
