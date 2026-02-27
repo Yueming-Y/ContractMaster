@@ -324,16 +324,25 @@ function markOccupied(grid, startC, startR, spanX, spanY) {
   }
 }
 
-function calculateLayout(loots, cols, tileW, tileH, margin, gridTop) {
-  const grid = [];
-  const maxRows = 12;
-  for (let r = 0; r < maxRows; r++) {
-    grid.push(new Array(cols).fill(false));
-  }
+function calculateLayout(loots, cols, maxRows, tileW, tileH, margin, gridTop) {
+  const grid = Array.from({ length: maxRows }, () => Array(cols).fill(false));
 
-  const layoutLoots = [];
+  const lootsWithOriginalIndex = loots.map((loot, index) => ({ ...loot, originalIndex: index }));
 
-  for (const loot of loots) {
+  const sortedLoots = lootsWithOriginalIndex.sort((a, b) => {
+    const spanA = getLootSpan(a);
+    const areaA = spanA.spanX * spanA.spanY;
+    const spanB = getLootSpan(b);
+    const areaB = spanB.spanX * spanB.spanY;
+    if (areaB !== areaA) {
+      return areaB - areaA;
+    }
+    return spanB.spanY - spanA.spanY;
+  });
+
+  const placedLoots = [];
+
+  for (const loot of sortedLoots) {
     const spanInfo = getLootSpan(loot);
     const spanX = spanInfo.spanX;
     const spanY = spanInfo.spanY;
@@ -352,7 +361,7 @@ function calculateLayout(loots, cols, tileW, tileH, margin, gridTop) {
             w: tileW * spanX + margin * (spanX - 1),
             h: tileH * spanY + margin * (spanY - 1)
           };
-          layoutLoots.push(lootWithLayout);
+          placedLoots.push(lootWithLayout);
           placed = true;
         }
       }
@@ -361,7 +370,10 @@ function calculateLayout(loots, cols, tileW, tileH, margin, gridTop) {
       console.error("Could not place item:", loot.itemName);
     }
   }
-  return layoutLoots;
+
+  placedLoots.sort((a, b) => a.originalIndex - b.originalIndex);
+
+  return placedLoots;
 }
 
 async function beginRoll(containerId) {
@@ -384,9 +396,8 @@ async function beginRoll(containerId) {
     const loots = await Promise.all(lootPromises);
     state.roundLoots = loots;
 
-    const cols = 4;
-    const { tileW, tileH, margin, gridTop } = getGridMetrics(cols);
-    state.layout = calculateLayout(loots, cols, tileW, tileH, margin, gridTop);
+    const { cols, rows, tileW, tileH, margin, gridTop } = getGridMetrics(4);
+    state.layout = calculateLayout(loots, cols, rows, tileW, tileH, margin, gridTop);
 
     startSpinForItem(0);
   } catch (e) {
@@ -534,12 +545,17 @@ function drawRevealedItem(loot) {
   ctx.strokeRect(loot.x, loot.y, loot.w, loot.h);
 
   if (img && imgLoaded && img.width) {
-    const maxW = Math.floor(loot.w * 0.92);
-    const maxH = Math.floor(loot.h * 0.92);
-    const scale = Math.min(maxW / img.width, maxH / img.height);
-    const w = Math.floor(img.width * scale);
-    const h = Math.floor(img.height * scale);
-    ctx.drawImage(img, loot.x + (loot.w - w) / 2, loot.y + (loot.h - h) / 2, w, h);
+    const scale = Math.max(loot.w / img.width, loot.h / img.height);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    const x = loot.x + (loot.w - w) / 2;
+    const y = loot.y + (loot.h - h) / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(loot.x, loot.y, loot.w, loot.h);
+    ctx.clip();
+    ctx.drawImage(img, x, y, w, h);
+    ctx.restore();
   } else {
     ctx.fillStyle = "#ffcc66";
     ctx.font = "12px sans-serif";
