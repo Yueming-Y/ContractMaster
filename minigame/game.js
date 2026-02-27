@@ -11,6 +11,8 @@ const SPIN_CYCLE_MS = 1600;
 const SPIN_MAG_X = 0.2;
 const SPIN_MAG_Y = 0.28;
 const SPIN_MAG_R = 0.05;
+const MIN_ROUND_ITEMS = 1;
+const MAX_ROUND_ITEMS = 4;
 
 const itemImages = {
   "pure_gold_bar": "assets/pure_gold_bar.png",
@@ -173,7 +175,12 @@ const state = {
   currentLoot: null,
   spinStart: 0,
   spinDuration: 0,
-  buttons: {}
+  buttons: {},
+  roundLoots: [],
+  layout: [],
+  roundIndex: 0,
+  roundValue: 0,
+  roundTarget: 0
 };
 
 function valueToWaitSec(v) {
@@ -206,7 +213,26 @@ function getGridMetrics(cols) {
   tileW = Math.min(desiredTile, Math.floor((canvas.width - margin * (cols + 1)) / cols));
   const tileH = tileW;
   const gridTop = 160;
-  return { margin, tileW, tileH, gridTop };
+  const rows = 4; // Define a fixed number of rows for the grid background
+  return { margin, tileW, tileH, gridTop, cols, rows };
+}
+
+function gridBottomY() {
+  const { gridTop, tileH, margin, rows } = getGridMetrics(4);
+  return gridTop + rows * tileH + (rows - 1) * margin;
+}
+
+function drawBaseGrid() {
+  const { gridTop, tileW, tileH, margin, cols, rows } = getGridMetrics(4);
+  ctx.strokeStyle = "#444";
+  ctx.lineWidth = 1;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = margin + c * (tileW + margin);
+      const y = gridTop + r * (tileH + margin);
+      ctx.strokeRect(x, y, tileW, tileH);
+    }
+  }
 }
 
 function normalizeRarity(r) {
@@ -276,29 +302,127 @@ function requestLoot(containerId) {
   });
 }
 
-function beginRoll(containerId) {
+function canPlace(grid, startC, startR, spanX, spanY, maxC, maxR) {
+  if (startC + spanX > maxC || startR + spanY > maxR) {
+    return false;
+  }
+  for (let r = startR; r < startR + spanY; r++) {
+    for (let c = startC; c < startC + spanX; c++) {
+      if (grid[r][c]) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function markOccupied(grid, startC, startR, spanX, spanY) {
+  for (let r = startR; r < startR + spanY; r++) {
+    for (let c = startC; c < startC + spanX; c++) {
+      grid[r][c] = true;
+    }
+  }
+}
+
+function calculateLayout(loots, cols, tileW, tileH, margin, gridTop) {
+  const grid = [];
+  const maxRows = 12;
+  for (let r = 0; r < maxRows; r++) {
+    grid.push(new Array(cols).fill(false));
+  }
+
+  const layoutLoots = [];
+
+  for (const loot of loots) {
+    const spanInfo = getLootSpan(loot);
+    const spanX = spanInfo.spanX;
+    const spanY = spanInfo.spanY;
+
+    let placed = false;
+    for (let r = 0; r < maxRows && !placed; r++) {
+      for (let c = 0; c < cols && !placed; c++) {
+        if (canPlace(grid, c, r, spanX, spanY, cols, maxRows)) {
+          markOccupied(grid, c, r, spanX, spanY);
+          const lootWithLayout = {
+            ...loot,
+            col: c,
+            row: r,
+            x: margin + c * (tileW + margin),
+            y: gridTop + r * (tileH + margin),
+            w: tileW * spanX + margin * (spanX - 1),
+            h: tileH * spanY + margin * (spanY - 1)
+          };
+          layoutLoots.push(lootWithLayout);
+          placed = true;
+        }
+      }
+    }
+    if (!placed) {
+      console.error("Could not place item:", loot.itemName);
+    }
+  }
+  return layoutLoots;
+}
+
+async function beginRoll(containerId) {
   state.searchCount++;
   state.mode = "spinning";
   state.selectedContainer = containerId;
-  requestLoot(containerId)
-    .then((loot) => {
-      state.currentLoot = loot;
-      state.spinStart = Date.now();
-      const rounds = spinRounds(loot);
-      state.spinDuration = Math.max(600, Math.round(rounds * SPIN_CYCLE_MS));
-    })
-    .catch(() => {
-      state.mode = "menu";
-    });
+  state.roundTarget = randomInt(MIN_ROUND_ITEMS, MAX_ROUND_ITEMS);
+  state.roundLoots = [];
+  state.layout = [];
+  state.roundValue = 0;
+  state.roundIndex = 0;
+  state.currentLoot = null;
+
+  const lootPromises = [];
+  for (let i = 0; i < state.roundTarget; i++) {
+    lootPromises.push(requestLoot(containerId));
+  }
+
+  try {
+    const loots = await Promise.all(lootPromises);
+    state.roundLoots = loots;
+
+    const cols = 4;
+    const { tileW, tileH, margin, gridTop } = getGridMetrics(cols);
+    state.layout = calculateLayout(loots, cols, tileW, tileH, margin, gridTop);
+
+    startSpinForItem(0);
+  } catch (e) {
+    console.error("Failed to fetch loot:", e);
+    state.mode = "menu";
+  }
+}
+
+function startSpinForItem(index) {
+  if (index >= state.layout.length) {
+    state.mode = 'result';
+    state.totalValue += state.roundValue;
+    return;
+  }
+  state.roundIndex = index;
+  const currentLoot = state.layout[index];
+  state.currentLoot = currentLoot;
+  state.spinStart = Date.now();
+  const rounds = spinRounds(currentLoot);
+  state.spinDuration = Math.max(600, Math.round(rounds * SPIN_CYCLE_MS));
 }
 
 function updateSpin() {
-  if (state.mode !== "spinning") return;
-  if (!state.currentLoot) return;
+  if (state.mode !== "spinning" || !state.currentLoot) return;
+
   const elapsed = Date.now() - state.spinStart;
   if (elapsed >= state.spinDuration) {
-    state.mode = "result";
-    state.totalValue += state.currentLoot.value;
+    state.roundValue += state.currentLoot.value;
+
+    const nextIndex = state.roundIndex + 1;
+    if (nextIndex < state.layout.length) {
+      startSpinForItem(nextIndex);
+    } else {
+      state.mode = "result";
+      state.totalValue += state.roundValue;
+    }
   }
 }
 
@@ -369,50 +493,67 @@ function drawSpinner() {
   } else {
     ctx.fillStyle = "#111111";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "24px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.fillText("正在搜索物资", canvas.width / 2, 100);
-    ctx.font = "16px sans-serif";
-    ctx.fillStyle = "#cccccc";
-    ctx.fillText(`第 ${state.searchCount} 次`, canvas.width / 2, 130);
   }
 
-  const cols = 4;
-  const rows = 4;
-  const { margin, tileW, tileH, gridTop } = getGridMetrics(cols);
-  if (!bgLoaded) {
-    for (let i = 0; i < cols * rows; i++) {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const x = margin + col * (tileW + margin);
-      const y = gridTop + row * (tileH + margin);
-      ctx.fillStyle = i === 0 ? "#000000" : "#2a2a2a";
-      ctx.fillRect(x, y, tileW, tileH);
-      ctx.strokeStyle = "#444";
-      ctx.strokeRect(x, y, tileW, tileH);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "24px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillText("正在搜索物资", canvas.width / 2, 100);
+  ctx.font = "16px sans-serif";
+  ctx.fillStyle = "#cccccc";
+  ctx.fillText(`第 ${state.searchCount} 次`, canvas.width / 2, 130);
+
+  drawBaseGrid();
+
+  state.layout.forEach((loot, index) => {
+    if (index < state.roundIndex) {
+      // Revealed items
+      drawRevealedItem(loot);
+    } else if (index === state.roundIndex) {
+      // Item currently spinning
+      drawSpinningIndicator(loot);
+    } else {
+      // Unrevealed items (card backs)
+      drawCardBack(loot);
     }
-  }
-  const firstX = margin;
-  const firstY = gridTop;
-  const loot = state.currentLoot;
-  const imgPath = loot ? itemImages[loot.itemName] : null;
+  });
+
+
+}
+
+function drawRevealedItem(loot) {
+  const imgPath = itemImages[loot.itemName];
   const img = getImage(imgPath);
   const imgEntry = imgPath ? imageCache[imgPath] : null;
   const imgLoaded = imgEntry && imgEntry.loaded;
-  const imgError = imgEntry && imgEntry.error;
-  const spanInfo = getLootSpan(loot, cols, rows);
-  const spanX = spanInfo.spanX;
-  const spanY = spanInfo.spanY;
-  const boxW = tileW * spanX + margin * (spanX - 1);
-  const boxH = tileH * spanY + margin * (spanY - 1);
-  if (!bgLoaded) {
-    drawStripes(firstX, firstY, boxW, boxH, "#0b0b0b", "#202020");
+
+  ctx.fillStyle = "#2a2a2a";
+  ctx.fillRect(loot.x, loot.y, loot.w, loot.h);
+  ctx.strokeStyle = "#444";
+  ctx.strokeRect(loot.x, loot.y, loot.w, loot.h);
+
+  if (img && imgLoaded && img.width) {
+    const maxW = Math.floor(loot.w * 0.92);
+    const maxH = Math.floor(loot.h * 0.92);
+    const scale = Math.min(maxW / img.width, maxH / img.height);
+    const w = Math.floor(img.width * scale);
+    const h = Math.floor(img.height * scale);
+    ctx.drawImage(img, loot.x + (loot.w - w) / 2, loot.y + (loot.h - h) / 2, w, h);
+  } else {
+    ctx.fillStyle = "#ffcc66";
+    ctx.font = "12px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("加载中", loot.x + loot.w / 2, loot.y + loot.h / 2);
   }
-  const cx = firstX + boxW / 2;
-  const cy = firstY + boxH / 2;
-  const r = Math.min(boxW, boxH) * 0.25;
+}
+
+function drawSpinningIndicator(loot) {
+  drawStripes(loot.x, loot.y, loot.w, loot.h, "#0b0b0b", "#202020");
+  const cx = loot.x + loot.w / 2;
+  const cy = loot.y + loot.h / 2;
+  const r = Math.min(loot.w, loot.h) * 0.25;
   ctx.strokeStyle = "#ffffff";
   ctx.lineWidth = 4;
   ctx.beginPath();
@@ -427,12 +568,10 @@ function drawSpinner() {
   ctx.moveTo(cx + Math.cos(handleAngle) * r, cy + Math.sin(handleAngle) * r);
   ctx.lineTo(hx, hy);
   ctx.stroke();
+}
 
-  if (state.currentLoot) {
-    const left = Math.max(0, Math.ceil((state.spinDuration - (Date.now() - state.spinStart)) / 1000));
-    ctx.font = "18px sans-serif";
-    ctx.fillText(`等待时间：${left}s`, canvas.width / 2, gridTop + tileH * rows + margin * rows + 20);
-  }
+function drawCardBack(loot) {
+  drawStripes(loot.x, loot.y, loot.w, loot.h, "#0b0b0b", "#202020");
 }
 
 function drawResult() {
@@ -447,62 +586,24 @@ function drawResult() {
   ctx.fillStyle = "#cccccc";
   ctx.fillText(`第 ${state.searchCount} 次搜索`, canvas.width / 2, 130);
 
-  const loot = state.currentLoot;
-  const cols = 4;
-  const rows = 4;
-  const { margin, tileW, tileH, gridTop } = getGridMetrics(cols);
-  for (let i = 0; i < cols * rows; i++) {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const x = margin + col * (tileW + margin);
-    const y = gridTop + row * (tileH + margin);
-    ctx.fillStyle = "#2a2a2a";
-    ctx.fillRect(x, y, tileW, tileH);
-    ctx.strokeStyle = "#444";
-    ctx.strokeRect(x, y, tileW, tileH);
-  }
-  const firstX = margin;
-  const firstY = gridTop;
-  const imgPath = itemImages[loot.itemName];
-  const img = getImage(imgPath);
-  const imgEntry = imgPath ? imageCache[imgPath] : null;
-  const imgLoaded = imgEntry && imgEntry.loaded;
-  const imgError = imgEntry && imgEntry.error;
-  const spanInfo = getLootSpan(loot, cols, rows);
-  const spanX = spanInfo.spanX;
-  const spanY = spanInfo.spanY;
-  const boxW = tileW * spanX + margin * (spanX - 1);
-  const boxH = tileH * spanY + margin * (spanY - 1);
-  ctx.strokeStyle = "#444";
-  ctx.strokeRect(firstX, firstY, boxW, boxH);
-  if (img && imgLoaded && img.width) {
-    const maxW = Math.floor(boxW * 0.98);
-    const maxH = Math.floor(boxH * 0.98);
-    const scale = Math.max(maxW / img.width, maxH / img.height);
-    const w = Math.floor(img.width * scale);
-    const h = Math.floor(img.height * scale);
-    ctx.drawImage(img, firstX + (boxW - w) / 2, firstY + (boxH - h) / 2, w, h);
-  } else if (imgPath) {
-    ctx.fillStyle = "#ffcc66";
-    ctx.font = "12px sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "bottom";
-    const status = imgError ? "加载失败" : "加载中";
-    ctx.fillText(`图片${status}: ${imgPath}`, firstX + 6, firstY + boxH - 6);
-  }
+  drawBaseGrid();
+
+  state.layout.forEach(loot => {
+    drawRevealedItem(loot);
+  });
 
   ctx.textAlign = "center";
-  const formattedValue = state.currentLoot.value.toLocaleString();
+  const formattedValue = state.roundValue.toLocaleString();
   ctx.font = "18px sans-serif";
   ctx.fillStyle = "#FFD700"; // Gold color
-  ctx.fillText(`当前价值：${formattedValue}`, canvas.width / 2, gridTop + tileH * rows + margin * rows + 20);
+  ctx.fillText(`本次总价值：${formattedValue}`, canvas.width / 2, gridBottomY() + 20);
   ctx.fillStyle = "#FFD700"; // Gold color
-  ctx.fillText(`累计价值：${state.totalValue.toLocaleString()}`, canvas.width / 2, gridTop + tileH * rows + margin * rows + 45);
+  ctx.fillText(`累计价值：${state.totalValue.toLocaleString()}`, canvas.width / 2, gridBottomY() + 45);
 
   const btnW = canvas.width * 0.6;
   const btnH = 56;
   const x = (canvas.width - btnW) / 2;
-  const yBase = gridTop + tileH * rows + margin * rows + 85;
+  const yBase = gridBottomY() + 85;
   const y1 = yBase;
   const y2 = y1 + 80;
   const againRect = { x, y: y1, w: btnW, h: btnH };
