@@ -14,6 +14,9 @@ const SPIN_MAG_R = 0.05;
 const MIN_ROUND_ITEMS = 1;
 const MAX_ROUND_ITEMS = 4;
 
+const SAFE_IMG = "assets/safe.png";
+const PC_IMG = "assets/pc.png";
+
 const itemImages = {
   "pure_gold_bar": "assets/pure_gold_bar.png",
   "tank_model": "assets/tank_model.png",
@@ -141,6 +144,8 @@ function getImage(path) {
 function preloadImages() {
   Object.values(itemImages).forEach((p) => getImage(p));
   if (SPIN_BG) getImage(SPIN_BG);
+  if (SAFE_IMG) getImage(SAFE_IMG);
+  if (PC_IMG) getImage(PC_IMG);
 }
 const containers = [
   {
@@ -485,20 +490,33 @@ function drawMenu() {
   ctx.textBaseline = "top";
   ctx.fillText("今天出红了吗", canvas.width / 2, 100);
 
+  const img = getImage(SAFE_IMG);
+  const imgLoaded = img && img.width;
+
+  const imgW = canvas.width * 0.3; // Further reduced to 0.3
+  const imgH = imgLoaded ? (img.height / img.width) * imgW : imgW;
+  const x = (canvas.width - imgW) / 2;
+  const y1 = 200;
+
+  const safeRect = { x, y: y1, w: imgW, h: imgH };
+  state.buttons.safe = safeRect;
+
+  if (imgLoaded) {
+    ctx.drawImage(img, x, y1, imgW, imgH);
+  } else {
+    drawButton(safeRect, "进入保险柜");
+  }
+
   const btnW = canvas.width * 0.6;
   const btnH = 60;
-  const x = (canvas.width - btnW) / 2;
-  const y1 = 200;
-  const y2 = y1 + 90;
-  const safeRect = { x, y: y1, w: btnW, h: btnH };
-  const pcRect = { x, y: y2, w: btnW, h: btnH };
-  state.buttons.safe = safeRect;
+  const y2 = y1 + imgH + 30;
+  const pcRect = { x: (canvas.width - btnW) / 2, y: y2, w: btnW, h: btnH };
   state.buttons.pc = pcRect;
-  drawButton(safeRect, "进入保险柜");
   drawButton(pcRect, "进入电脑");
 
   ctx.font = "18px sans-serif";
-  ctx.fillText(`累计价值：${state.totalValue}`, canvas.width / 2, y2 + 110);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(`累计价值：${state.totalValue.toLocaleString()}`, canvas.width / 2, y2 + btnH + 50);
 }
 
 function drawSpinner() {
